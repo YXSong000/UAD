@@ -29,11 +29,13 @@ python distill.py --dset office --t 1 --max_epoch 15 --gpu_id 0 --output_src ckp
 ### Citation
 If you use this code in your research please consider citing
 ```
-@article{ahmed2021unsupervised,
-  title={Unsupervised Multi-source Domain Adaptation Without Access to Source Data},
-  author={Ahmed, Sk Miraj and Raychaudhuri, Dripta S and Paul, Sujoy and Oymak, Samet and Roy-Chowdhury, Amit K},
-  journal={arXiv preprint arXiv:2104.01845},
-  year={2021}
+@misc{song2024multisourcefree,
+      title={Multi-source-free Domain Adaptation via Uncertainty-aware Adaptive Distillation}, 
+      author={Yaxuan Song and Jianan Fan and Dongnan Liu and Weidong Cai},
+      year={2024},
+      eprint={2402.06213},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
 }
 ```
 
