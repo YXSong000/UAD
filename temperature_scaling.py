@@ -12,12 +12,14 @@ class ModelWithTemperature(nn.Module):
         NB: Output of the neural network should be the classification logits,
             NOT the softmax (or log softmax)!
     """
-    def __init__(self, model):
+    def __init__(self, args, model):
         super(ModelWithTemperature, self).__init__()
+        self.dataset = args.dset
         self.model = model
-        # self.temperature = nn.Parameter(torch.ones(1) * 1.5)
-        self.temperature = nn.Parameter(torch.ones(1) * math.log(1. / 1.5))
-        # print(self.temperature.requires_grad)
+        if self.dataset == 'DR':
+            self.temperature = nn.Parameter(torch.ones(1) * math.log(1. / 1.5))
+        else:
+            self.temperature = nn.Parameter(torch.ones(1) * 1.5)
 
     def forward(self, input):
         _, logits, _ = self.model(input)
@@ -27,10 +29,12 @@ class ModelWithTemperature(nn.Module):
         """
         Perform temperature scaling on logits
         """
-        # Expand temperature to match the size of logits
-        # temperature = self.temperature.unsqueeze(1).expand(logits.size(0), logits.size(1))
-        temperature = self.temperature.exp()
-        return logits * temperature
+        if self.dataset == 'DR':
+            temperature = self.temperature.exp()
+            return logits * temperature
+        else:
+            temperature = self.temperature.unsqueeze(1).expand(logits.size(0), logits.size(1))
+            return logits / temperature
 
     # This function probably should live outside of this class, but whatever
     def set_temperature(self, valid_loader):
@@ -62,7 +66,6 @@ class ModelWithTemperature(nn.Module):
 
         # Next: optimize the temperature w.r.t. NLL
         optimizer = optim.LBFGS([self.temperature], lr=0.01, max_iter=50)
-        # print(self.temperature.requires_grad)
         def eval():
             optimizer.zero_grad()
             loss = ece_criterion(self.temperature_scale(logits), labels)
@@ -70,13 +73,16 @@ class ModelWithTemperature(nn.Module):
             return loss
         optimizer.step(eval)
 
-        # Calculate NLL and ECE after temperature scaling
-        after_temperature_nll = nll_criterion(self.temperature_scale(logits), labels).item()
+        # Calculate ECE after temperature scaling
         after_temperature_ece = ece_criterion(self.temperature_scale(logits), labels).item()
-        print('Optimal temperature: %.3f' % (1. / self.temperature.exp().item()))
-        print('After temperature - ECE: %.3f' % (after_temperature_ece))
-
-        return 1. / self.temperature.exp().item()
+        if self.dataset == 'DR':
+            print('Optimal temperature: %.3f' % (1. / self.temperature.exp().item()))
+            print('After temperature - ECE: %.3f' % (after_temperature_ece))
+            return 1. / self.temperature.exp().item()
+        else:
+            print('Optimal temperature: %.3f' % self.temperature.item())
+            print('After temperature - ECE: %.3f' % (after_temperature_ece))
+            return self.temperature.item()
 
 
 class _ECELoss(nn.Module):
@@ -110,8 +116,6 @@ class _ECELoss(nn.Module):
     def forward(self, logits, labels):
         softmaxes = F.softmax(logits, dim=1)
         confidences, predictions = torch.max(softmaxes, 1)
-        ##### change confidence for UAD
-        # confidences = torch.max(softmaxes, dim=1)[0] - torch.topk(softmaxes, k=2)[0][:, -1]
         accuracies = predictions.eq(labels)
 
         ece = torch.zeros(1, device=logits.device)

@@ -1,21 +1,17 @@
 import argparse
-import os, sys
+import os
 import os.path as osp
-import torchvision
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
-import network, loss
+import loss
 from torch.utils.data import DataLoader
 from data_list import ImageList
-import random, pdb, math, copy
-from tqdm import tqdm
+import random
 from loss import CrossEntropyLabelSmooth
-from scipy.spatial.distance import cdist
 from sklearn.metrics import confusion_matrix
-from sklearn.cluster import KMeans
 from networks.models import DenseNet121
 
 def op_copy(optimizer):
@@ -70,7 +66,6 @@ def data_load(args):
     if args.trte == "val":
         dsize = len(txt_src)
         tr_size = int(0.9*dsize)
-        # print(dsize, tr_size, dsize - tr_size)
         tr_txt, te_txt = torch.utils.data.random_split(txt_src, [tr_size, dsize - tr_size])
     else:
         dsize = len(txt_src)
@@ -122,14 +117,6 @@ def cal_acc(loader, net, flag=False):
 
 def train_source(args):
     dset_loaders = data_load(args)
-    ## set base network
-    # if args.net[0:3] == 'res':
-    #     netF = network.ResBase(res_name=args.net).cuda()
-    # elif args.net[0:3] == 'vgg':
-    #     netF = network.VGGBase(vgg_name=args.net).cuda()  
-
-    # netB = network.feat_bottleneck(type=args.classifier, feature_dim=netF.in_features, bottleneck_dim=args.bottleneck).cuda()
-    # netC = network.feat_classifier(type=args.layer, class_num = args.class_num, bottleneck_dim=args.bottleneck).cuda()
 
     net = DenseNet121(out_size=args.class_num, mode='U-Ones').cuda()
 
@@ -137,13 +124,7 @@ def train_source(args):
     learning_rate = args.lr
     for k, v in net.named_parameters():
         param_group += [{'params': v, 'lr': learning_rate}]
-    # for k, v in netB.named_parameters():
-    #     param_group += [{'params': v, 'lr': learning_rate}]
-    # for k, v in netC.named_parameters():
-    #     param_group += [{'params': v, 'lr': learning_rate}]   
     optimizer = optim.SGD(param_group)
-    # optimizer = torch.optim.Adam(param_group, lr=args.lr, 
-                                # betas=(0.9, 0.999), weight_decay=5e-4)
     optimizer = op_copy(optimizer)
 
     acc_init = 0
@@ -152,8 +133,6 @@ def train_source(args):
     iter_num = 0
 
     net.train()
-    # netB.train()
-    # netC.train()
 
     while iter_num < max_iter:
         try:
@@ -178,8 +157,6 @@ def train_source(args):
 
         if iter_num % interval_iter == 0 or iter_num == max_iter:
             net.eval()
-            # netB.eval()
-            # netC.eval()
             acc_s_te, _ = cal_acc(dset_loaders['source_te'], net, False)
             log_str = 'Task: {}, Iter:{}/{}; Accuracy = {:.2f}%'.format(args.name_src, iter_num, max_iter, acc_s_te)
             args.out_file.write(log_str + '\n')
@@ -189,41 +166,21 @@ def train_source(args):
             if acc_s_te >= acc_init:
                 acc_init = acc_s_te
                 best_net = net.state_dict()
-                # best_netB = netB.state_dict()
-                # best_netC = netC.state_dict()
 
             net.train()
-            # netB.train()
-            # netC.train()
                 
     torch.save(best_net, osp.join(args.output_dir_src, "source_lr0.01_no-sch.pt"))
-    # torch.save(best_netB, osp.join(args.output_dir_src, "source_B.pt"))
-    # torch.save(best_netC, osp.join(args.output_dir_src, "source_C.pt"))
 
     return net
 
 def test_target(args):
     dset_loaders = data_load(args)
-    ## set base network
-    # if args.net[0:3] == 'res':
-    #     netF = network.ResBase(res_name=args.net).cuda()
-    # elif args.net[0:3] == 'vgg':
-    #     netF = network.VGGBase(vgg_name=args.net).cuda()  
-
-    # netB = network.feat_bottleneck(type=args.classifier, feature_dim=netF.in_features, bottleneck_dim=args.bottleneck).cuda()
-    # netC = network.feat_classifier(type=args.layer, class_num = args.class_num, bottleneck_dim=args.bottleneck).cuda()
 
     net = DenseNet121(out_size=args.class_num, mode='U-Ones').cuda()
     
     args.modelpath = args.output_dir_src + '/source_lr0.01_no-sch.pt'   
     net.load_state_dict(torch.load(args.modelpath))
-    # args.modelpath = args.output_dir_src + '/source_B.pt'   
-    # netB.load_state_dict(torch.load(args.modelpath))
-    # args.modelpath = args.output_dir_src + '/source_C.pt'   
-    # netC.load_state_dict(torch.load(args.modelpath))
     net.eval()
-    # netB.eval()
-    # netC.eval()
 
     acc, _ = cal_acc(dset_loaders['test'], net, False)
     log_str = '\nTraining: {}, Task: {}, Accuracy = {:.2f}%'.format(args.trte, args.name, acc)
@@ -246,7 +203,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_epoch', type=int, default=20, help="max iterations")
     parser.add_argument('--batch_size', type=int, default=32, help="batch_size")
     parser.add_argument('--worker', type=int, default=4, help="number of workers")
-    parser.add_argument('--dset', type=str, default='DR', choices=['office', 'office-home', 'office-caltech', 'DR', 'HAM10000'])
+    parser.add_argument('--dset', type=str, default='DR', choices=['DR', 'HAM10000'])
     parser.add_argument('--lr', type=float, default=1e-2, help="learning rate")
     parser.add_argument('--net', type=str, default='resnet50', help="vgg16, resnet50, resnet101")
     parser.add_argument('--seed', type=int, default=2021, help="random seed")
@@ -259,17 +216,8 @@ if __name__ == "__main__":
     parser.add_argument('--trte', type=str, default='val', choices=['full', 'val'])
     args = parser.parse_args()
 
-    if args.dset == 'office-home':
-        names = ['Art', 'Clipart', 'Product', 'Real_World']
-        args.class_num = 65 
-    if args.dset == 'office':
-        names = ['amazon', 'dslr', 'webcam']
-        args.class_num = 31
-    if args.dset == 'office-caltech':
-        names = ['amazon', 'caltech', 'dslr', 'webcam']
-        args.class_num = 10
     if args.dset == 'DR':
-        names = ['APTOS-2019', 'DDR', 'IDRiD', 'Messidor-2']
+        names = ['APTOS-2019', 'DDR', 'IDRiD']
         args.class_num = 5  
     if  args.dset == 'HAM10000':
         names = ['back', 'face', 'lowerExtremity', 'upperExtremity']
@@ -281,7 +229,6 @@ if __name__ == "__main__":
     torch.cuda.manual_seed(SEED)
     np.random.seed(SEED)
     random.seed(SEED)
-    # torch.backends.cudnn.deterministic = True
 
     folder = './dataset/'
     args.s_dset_path = folder + args.dset + '/' + names[args.s] + '_list.txt'
@@ -294,13 +241,13 @@ if __name__ == "__main__":
     if not osp.exists(args.output_dir_src):
         os.mkdir(args.output_dir_src)
 
-    args.out_file = open(osp.join(args.output_dir_src, 'log_lr0.01_no-sch.txt'), 'w')
+    args.out_file = open(osp.join(args.output_dir_src, 'log.txt'), 'w')
     args.out_file.write(print_args(args)+'\n')
     args.out_file.flush()
     
     train_source(args)
 
-    args.out_file = open(osp.join(args.output_dir_src, 'log_test_lr0.01_no-sch.txt'), 'w')
+    args.out_file = open(osp.join(args.output_dir_src, 'log_test.txt'), 'w')
     for i in range(len(names)):
         if i == args.s:
             continue

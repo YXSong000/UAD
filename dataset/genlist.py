@@ -2,16 +2,10 @@ import os
 
 dataset = 'DR'
 
-if dataset == 'office':
-	domains = ['amazon', 'dslr', 'webcam']
-elif dataset == 'office-caltech':
-	domains = ['amazon', 'dslr', 'webcam', 'caltech']
-elif dataset == 'office-home':
-	domains = ['Art', 'Clipart', 'Product', 'Real_World']
-elif dataset == 'HAM10000':
-	domains = ['abdomen', 'acral', 'back', 'chest', 'ear', 'face', 'foot', 'genital', 'hand', 'lowerExtremity', 'neck', 'scalp', 'trunk', 'unknown', 'upperExtremity']
+if dataset == 'HAM10000':
+	domains = ['back', 'face', 'lowerExtremity', 'upperExtremity']
 elif dataset == 'DR':
-	domains = ['APTOS-2019', 'DDR', 'IDRiD', 'Messidor-2']
+	domains = ['APTOS-2019', 'DDR', 'IDRiD']
 else:
 	raise KeyError('No such dataset exists!')
 
